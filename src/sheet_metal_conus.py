@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from __future__ import division
+# Distributed under the terms of the GNU Lesser General Public License v3.0
+
 import sys
 sys.path.append('/usr/share/inkscape/extensions')
 import math
