@@ -5,14 +5,19 @@ The extension unfolds a frustum (=truncated cone) or a cone (if cut diameter=0) 
 
 ## Installation
 
-Copy the two files sheet_metal_conus.inx and sheet_metal_conus.py into this folders:
+Copy the two files sheet_metal_conus.inx and sheet_metal_conus.py into the extensions folder:
+The exact folder is indicated in:
+ - Edit -> Preferences -> System: User extensions
+
+Generally it can be found:
 
 Linux:
 *  ~/.config/inkscape/extensions/ or
 *  /usr/share/inkscape/extensions/
 
 Windows: 
-*  C:\Program Files\Inkscape\share\extensions\.
+*  type the following into the address line on a File Browser window:
+*  %appdata%/inkscape/extensions
 
 Mac OS X: 
 *  /Applications/Inkscape.app/Contents/Resources/share/inkscape/extensions/

@@ -1,25 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
   <_name>Sheet Metal Conus</_name>
-  <id>org.ekips.filter.sheet_metal_conus</id>
+  <id>sheet_metal_conus</id>
   <dependency type="executable" location="extensions">sheet_metal_conus.py</dependency>
   <dependency type="executable" location="extensions">inkex.py</dependency>
-  <param name="name" type="description">Constructs a sheet cutting layout or flat pattern projection that can be rolled or bend up into a frustum (=truncated cone) or cone shape.  If the cone is not cut (Cut diameter=0) than the resulting cone will not be truncated.</param>
-  <param name="diaBase" type="float" precision="4" min="0" max="10000000000" gui-text="Base diameter:">300.00</param>
-  <param name="diaCut" type="float" precision="4" min="0" max="10000000000" gui-text="Cut diameter:">100.00</param>
-  <param name="heightCone" type="float" precision="4" min="0" max="10000000000" gui-text="Height:">200.00</param>
-  <param name="unit" type="enum" gui-text="Units:   ">
-	<item value="millimetre">millimetre</item>
-	<item value="inch">inch</item>
-  </param>
-  <param name="strokeWidth" type="float" precision="3" min="0.001" max="10000000000" gui-text="Line thickness in given unit: ">0.4</param>
-  <param name="strokeColour" type="string" gui-text="Line colour: ">blue</param>
-  <param name="verbose" type="boolean" gui-text="Verbose output of calculated values: ">false</param>
+  <dependency type="executable" location="extensions">simplestyle.py</dependency>
+  <dependency type="executable" location="extensions">simpletransform.py</dependency>
 
+  <param name="units" _gui-text="Units" type="optiongroup" appearance="minimal">
+        <option value="mm">mm</option>
+        <option value="cm">cm</option>
+        <option value="in">in</option>
+        <option value="px">px</option>
+        <option value="pt">pt</option>
+        </param>
+  <param name="diaBase" type="float" precision="3" min="0" max="10000000000" gui-text="Base diameter:">300.0</param>
+  <param name="diaCut" type="float" precision="3" min="0" max="10000000000" gui-text="Cut diameter:">100.0</param>
+  <param name="heightCone" type="float" precision="3" min="0" max="10000000000" gui-text="Cone Height:">200.0</param>
+  <param name="strokeWidth" type="float" precision="2" min="0.001" max="10000000000" gui-text="Line thickness (in units): ">0.4</param>
+  <param name="verbose" type="boolean" gui-text="Draw dimensions.">false</param>
+  <param name="name" type="description" xml:space="preserve">Constructs a flat pattern projection (sheet cutting layout)
+that can be rolled or bent into a cone or frustum (truncated cone).
+If Cut diameter=0 then cone will not be truncated.</param>
+  <param name="strokeColour" type="color" gui-text="Line colour: ">0</param>
   <effect>
     <object-type>all</object-type>
     <effects-menu>
-       <submenu _name="Sheet Metal"/>
+       <submenu _name="Render"/>
     </effects-menu>
   </effect>
   <script>
