@@ -3,7 +3,6 @@
 # Distributed under the terms of the GNU Lesser General Public License v3.0
 
 import sys
-#sys.path.append('/usr/share/inkscape/extensions')
 import math
 import simplestyle
 import simpletransform
@@ -65,20 +64,18 @@ class SheetMetalConus(inkex.Effect):
         except AttributeError:
             return self.unittouu(param)
 
-    def unsignedLong(self, signedLongString):
-        " interpret the signed long as unsigned "
-        longColor = long(signedLongString)
-        if longColor < 0:
-            longColor = longColor & 0xFFFFFFFF
-        return longColor
-
-    #A*256^0 + B*256^1 + G*256^2 + R*256^3
-    def getColorString(self, longColor):
-        " convert the long into a #RRGGBB color value "
-        longColor = self.unsignedLong(longColor)
+    def getColorString(self, longColor, verbose=False):
+        """ Convert the long into a #RRGGBB color value
+            - verbose=true pops up value for us in defaults
+            conversion back is A + B*256^1 + G*256^2 + R*256^3
+        """
+        if verbose: inkex.debug("%s ="%(longColor))
+        longColor = long(longColor)
+        if longColor <0: longColor = long(longColor) & 0xFFFFFFFF
         hexColor = hex(longColor)[2:-3]
-        hexColor = hexColor.rjust(6, '0')
-        return '#' + hexColor.upper()
+        hexColor = '#' + hexColor.rjust(6, '0').upper()
+        if verbose: inkex.debug("  %s for color default value"%(hexColor))
+        return hexColor
 
     def calculateCone(self, dictCone):
         """ Calculates all relevant values in order to construct a cone.
@@ -133,7 +130,6 @@ class SheetMetalConus(inkex.Effect):
         # calc scene scale
         convFactor = self.getUnittouu("1" + self.options.units)
         # convert color
-        #inkex.debug("%s"%(self.options.strokeColour))
         self.options.strokeColour = self.getColorString(self.options.strokeColour)      
         # Store all the relevants values in a dictionary for easy access
         dictCone={'diaBase':    self.options.diaBase,
