@@ -12,7 +12,15 @@ def calc_angle_between_points(p1, p2):
         xDiff = p2[0] - p1[0]
         yDiff = p2[1] - p1[1]
         return math.degrees(math.atan2(yDiff, xDiff))
-
+def calc_dist_between_points(p1, p2):
+        xDiff = p2[0] - p1[0]
+        yDiff = p2[1] - p1[1]
+        return math.sqrt(yDiff*yDiff + xDiff*xDiff)
+def normalize(p1, p2):
+    xDiff = p2[0] - p1[0]
+    yDiff = p2[1] - p1[1]
+    magn = calc_dist_between_points(p1,p2)
+    return (xDiff/magn, yDiff/magn)
 
 class SheetMetalConus(inkex.Effect):
     """ Program to unfold a frustum of a cone or a cone 
@@ -55,7 +63,18 @@ class SheetMetalConus(inkex.Effect):
         self.OptionParser.add_option('-d', '--verbose', action = 'store',
             type = 'inkbool', dest = 'verbose', default = False,
             help = 'Enable verbose output of calculated parameters. Used for debugging or is someone needs the calculated values.')
-
+        # Arrowed lines
+        self.dimline_style = {
+            'stroke'        : '#000000',
+            'stroke-width'  : '0.75px',
+            'fill'          : 'none',
+            'marker-start'  : 'url(#ArrowDIN-start)',
+            'marker-end'    : 'url(#ArrowDIN-end)'
+            }
+        # self.dimline_attribs = {'style'  : simplestyle.formatStyle(self.dimline_style),
+                                # inkex.addNS('label','inkscape') : 'dimline',
+                                # 'd' : 'm 0,0 200,0'
+                               # }
 
     def getUnittouu(self, param):
         " compatibility between inkscape 0.48 and 0.91 "
@@ -77,6 +96,71 @@ class SheetMetalConus(inkex.Effect):
         if verbose: inkex.debug("  %s for color default value"%(hexColor))
         return hexColor
 
+    # Marker arrows
+    def makeMarkerstyle(self, name, rotate):
+        defs = self.xpathSingle('/svg:svg//svg:defs')
+        if defs == None:
+            defs = inkex.etree.SubElement(self.document.getroot(),inkex.addNS('defs','svg'))
+        marker = inkex.etree.SubElement(defs ,inkex.addNS('marker','svg'))
+        marker.set('id', name)
+        marker.set('orient', 'auto')
+        marker.set('refX', '0.0')
+        marker.set('refY', '0.0')
+        marker.set('style', 'overflow:visible')
+        marker.set(inkex.addNS('stockid','inkscape'), name)
+
+        arrow = inkex.etree.Element("path")
+        # messy but works; definition of arrows in beautiful DIN-shapes:
+        if name.startswith('ArrowDIN-'):
+            if rotate:
+                arrow.set('d', 'M 8,0 -8,2.11 -8,-2.11 z')
+            else:
+                arrow.set('d', 'M -8,0 8,-2.11 8,2.11 z')
+        if name.startswith('ArrowDINout-'):
+            if rotate:
+                arrow.set('d', 'M 0,0 16,2.11 16,0.5 26,0.5 26,-0.5 16,-0.5 16,-2.11 z')
+            else:
+                arrow.set('d', 'M 0,0 -16,2.11 -16,0.5 -26,0.5 -26,-0.5 -16,-0.5 -16,-2.11 z')
+        arrow.set('style', 'fill:#000000;stroke:none')
+        marker.append(arrow)
+
+    def set_arrow_dir(self, option):
+        if option=='inside':
+            # inside
+            self.arrowlen = 6.0
+            self.dimline_style['marker-start'] = 'url(#ArrowDIN-start)'
+            self.dimline_style['marker-end'] = 'url(#ArrowDIN-end)'
+            self.makeMarkerstyle('ArrowDIN-start', False)
+            self.makeMarkerstyle('ArrowDIN-end', True)
+        else:
+            # outside
+            self.arrowlen = 0
+            self.dimline_style['marker-start'] = 'url(#ArrowDINout-start)'
+            self.dimline_style['marker-end'] = 'url(#ArrowDINout-end)'
+            self.makeMarkerstyle('ArrowDINout-start', False)
+            self.makeMarkerstyle('ArrowDINout-end', True)
+
+    
+    def drawDimension(self, a, b, style, parent):
+        " draw arrowed dimensions using markers "
+        # draw arrows as inside or outside dimension
+        critical_length = 35.
+        if calc_dist_between_points(a,b) > critical_length:
+            self.set_arrow_dir('inside')
+        else:
+            self.set_arrow_dir('outside')
+        attribs = {'style' : simplestyle.formatStyle(style)}
+        # account for length change so arrows fit
+        norm = normalize(a, b)
+        dim_start_x = a[0] + self.arrowlen*norm[0]
+        dim_start_y = a[1] + self.arrowlen*norm[1]
+        dim_end_x = b[0] - self.arrowlen*norm[0]
+        dim_end_y = b[1] - self.arrowlen*norm[1]
+        #
+        attribs['d'] = 'M %f,%f %f,%f' % (dim_start_x, dim_start_y, dim_end_x, dim_end_y)
+        dimline = inkex.etree.SubElement(parent, inkex.addNS('path', 'svg'), attribs)
+        return dimline
+        
     def calculateCone(self, dictCone):
         """ Calculates all relevant values in order to construct a cone.
             These values are:
@@ -209,6 +293,7 @@ class SheetMetalConus(inkex.Effect):
         # styles for markup
         stroke_width = max(0.1, self.getUnittouu(str(self.options.strokeWidth/2) + self.options.units))
         line_style = { 'stroke': self.color_marker_dim, 'stroke-width': str(stroke_width), 'fill':'none' }
+        arrow_style = self.dimline_style
         font_height = min(32, max( 10, int(self.getUnittouu(str(cone_height/16) + self.options.units))))
         text_style = { 'font-size': str(font_height),
                        'font-family': 'arial',
@@ -235,7 +320,7 @@ class SheetMetalConus(inkex.Effect):
                         'd' : 'M -{0},{0} L {0},-{0}'.format(marker_length)}
         line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         # Draw tick marks
-        line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M 0,0 L 0,-30'}
+        line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M 0,-3 L 0,-30'}
         line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         if cut_dia != 0:
             line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M {0},-3 L {0},-30'.format(shortradius * unitFactor)}
@@ -243,8 +328,9 @@ class SheetMetalConus(inkex.Effect):
         line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M {0},-3 L {0},-30'.format(longradius * unitFactor)}
         line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         # span line
-        line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M 0,-10 L {0},-10'.format(longradius * unitFactor)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        arrow_style['stroke'] = self.color_marker_dim
+        self.drawDimension((0,-10), (shortradius * unitFactor, -10), arrow_style, parent)
+        self.drawDimension((shortradius * unitFactor,-10), (longradius * unitFactor, -10), arrow_style, parent)
         # labels for short, long radii
         if cut_dia >= 0.001:
             text_atts = {'style':simplestyle.formatStyle(text_style),
@@ -264,20 +350,17 @@ class SheetMetalConus(inkex.Effect):
         text = inkex.etree.SubElement(parent, 'text', text_atts)
         text.text = "Angle %4.2f" %(math.degrees(angle))
         # chord lines
-        dash_style = { 'stroke': self.color_marker_chords, 'stroke-width': str(stroke_width*2),
-                       'stroke-miterlimit': '4', 'stroke-dasharray': '4, 2, 1, 2', 'stroke-dashoffset': '0' }
-        line_attribs = {'style': simplestyle.formatStyle(dash_style),
-                        'd': 'M %f,%f L %f,%f' %(ptA[0]*unitFactor, ptA[1]*unitFactor, ptD[0]*unitFactor, ptD[1]*unitFactor)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
-        line_attribs = {'style': simplestyle.formatStyle(dash_style),
-                        'd': 'M %f,%f L %f,%f' %(ptB[0]*unitFactor, ptB[1]*unitFactor, ptC[0]*unitFactor, ptC[1]*unitFactor)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        dash_style = arrow_style
+        dash_style['stroke'] = self.color_marker_chords
+        dash_style['stroke-width'] = str(stroke_width)
+        dash_style['stroke-dasharray'] = '4, 2, 1, 2'
+        line = self.drawDimension((ptA[0]*unitFactor, ptA[1]*unitFactor), (ptD[0]*unitFactor, ptD[1]*unitFactor), dash_style, parent)
+        line = self.drawDimension((ptB[0]*unitFactor, ptB[1]*unitFactor), (ptC[0]*unitFactor, ptC[1]*unitFactor), dash_style, parent)
         # chord labels
         centerx = ptB[0]*unitFactor + (ptC[0]-ptB[0])*unitFactor/2
         centery = ptB[1]*unitFactor + (ptC[1]-ptB[1])*unitFactor/2
         line_angle = calc_angle_between_points(ptC, ptB)
         ypos = centery+font_height+2 if line_angle<0 else centery-2
-        #inkex.debug("%s"%(line_angle))
         text_style['fill'] = self.color_marker_chords
         text_atts = {'style':simplestyle.formatStyle(text_style),
                      'transform': 'rotate(%f)' % (line_angle) }
@@ -296,6 +379,9 @@ class SheetMetalConus(inkex.Effect):
         frustrum_repos = [[1, 0.0, 1], [0.0, 1, math.sqrt(pow(shortradius*unitFactor,2)-pow(cut_dia*unitFactor/2,2))]]
         text_style['fill'] = self.color_marker_base
         line_style['stroke'] = self.color_marker_base
+        arrow_style['stroke'] = self.color_marker_base
+        arrow_style['stroke-width'] = str(stroke_width)
+        dash_style['stroke-dasharray'] = None
         line_attribs = {'style': simplestyle.formatStyle(line_style),
                         'd': 'M %f,%f L %f,%f %f,%f %f,%f z' %(-cut_dia/2*unitFactor,0, cut_dia/2*unitFactor,0, base_dia/2*unitFactor,cone_height*unitFactor, -base_dia/2*unitFactor,cone_height*unitFactor)}
         line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
@@ -305,9 +391,8 @@ class SheetMetalConus(inkex.Effect):
                         'd': 'M %f,%f L %f,%f' %(-(5+cut_dia/2*unitFactor),0, -(5+base_dia/2*unitFactor),0 )}
         line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         simpletransform.applyTransformToNode(frustrum_repos, line)
-        line_attribs = {'style': simplestyle.formatStyle(line_style),
-                        'd': 'M %f,%f L %f,%f' %(-base_dia/2*unitFactor,0, -base_dia/2*unitFactor,cone_height*unitFactor-5 )}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        #
+        line = self.drawDimension((-base_dia/2*unitFactor,0), (-base_dia/2*unitFactor,cone_height*unitFactor-5), arrow_style, parent)
         simpletransform.applyTransformToNode(frustrum_repos, line)
         # frustum text
         text_atts = {'style':simplestyle.formatStyle(text_style),
