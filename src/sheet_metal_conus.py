@@ -7,16 +7,19 @@ import math
 import simplestyle
 import simpletransform
 import inkex
+from copy import deepcopy
 
+# Helper functions
 def calc_angle_between_points(p1, p2):
-        xDiff = p2[0] - p1[0]
-        yDiff = p2[1] - p1[1]
-        return math.degrees(math.atan2(yDiff, xDiff))
+    xDiff = p2[0] - p1[0]
+    yDiff = p2[1] - p1[1]
+    return math.degrees(math.atan2(yDiff, xDiff))
 def calc_dist_between_points(p1, p2):
-        xDiff = p2[0] - p1[0]
-        yDiff = p2[1] - p1[1]
-        return math.sqrt(yDiff*yDiff + xDiff*xDiff)
+    xDiff = p2[0] - p1[0]
+    yDiff = p2[1] - p1[1]
+    return math.sqrt(yDiff*yDiff + xDiff*xDiff)
 def normalize(p1, p2):
+    " p1,p2 defines a vector return normalized "
     xDiff = p2[0] - p1[0]
     yDiff = p2[1] - p1[1]
     magn = calc_dist_between_points(p1,p2)
@@ -26,6 +29,12 @@ def polar_to_cartesian(cx, cy, radius, angle_degrees):
     angle_radians = math.radians(angle_degrees)
     return (cx + (radius * math.cos(angle_radians)),
             cy + (radius * math.sin(angle_radians)))
+def point_on_circle(radius, angle):
+    " return xy coord of the point at distance radius from origin at angle "
+    x = radius * math.cos(angle)
+    y = radius * math.sin(angle)
+    return [x, y]
+
 
 class SheetMetalConus(inkex.Effect):
     """ Program to unfold a frustum of a cone or a cone 
@@ -35,6 +44,12 @@ class SheetMetalConus(inkex.Effect):
     color_marker_dim = '#703cd6'    # purple
     color_marker_chords = '#9d2222' # red
     color_marker_base = '#36ba36'   # green
+    # Arrowed lines
+    dimline_style = {'stroke'        : '#000000',
+                     'stroke-width'  : '0.75px',
+                     'fill'          : 'none',
+                     'marker-start'  : 'url(#ArrowDIN-start)',
+                     'marker-end'    : 'url(#ArrowDIN-end)'    }
 
     def __init__(self):
         """ Parses the command line options ( Base diameter, cut diameter and height of cone).
@@ -68,15 +83,6 @@ class SheetMetalConus(inkex.Effect):
         self.OptionParser.add_option('-d', '--verbose', action = 'store',
             type = 'inkbool', dest = 'verbose', default = False,
             help = 'Enable verbose output of calculated parameters. Used for debugging or is someone needs the calculated values.')
-        # Arrowed lines
-        self.dimline_style = {
-            'stroke'        : '#000000',
-            'stroke-width'  : '0.75px',
-            'fill'          : 'none',
-            'marker-start'  : 'url(#ArrowDIN-start)',
-            'marker-end'    : 'url(#ArrowDIN-end)'
-            }
-
 
     def getUnittouu(self, param):
         " compatibility between inkscape 0.48 and 0.91 "
@@ -126,31 +132,69 @@ class SheetMetalConus(inkex.Effect):
         arrow.set('style', 'fill:#000000;stroke:none')
         marker.append(arrow)
 
-    def set_arrow_dir(self, option):
+    def set_arrow_dir(self, option, style):
         if option=='inside':
             # inside
             self.arrowlen = 6.0
-            self.dimline_style['marker-start'] = 'url(#ArrowDIN-start)'
-            self.dimline_style['marker-end'] = 'url(#ArrowDIN-end)'
+            style['marker-start'] = 'url(#ArrowDIN-start)'
+            style['marker-end'] = 'url(#ArrowDIN-end)'
             self.makeMarkerstyle('ArrowDIN-start', False)
             self.makeMarkerstyle('ArrowDIN-end', True)
         else:
             # outside
             self.arrowlen = 0
-            self.dimline_style['marker-start'] = 'url(#ArrowDINout-start)'
-            self.dimline_style['marker-end'] = 'url(#ArrowDINout-end)'
+            style['marker-start'] = 'url(#ArrowDINout-start)'
+            style['marker-end'] = 'url(#ArrowDINout-end)'
             self.makeMarkerstyle('ArrowDINout-start', False)
             self.makeMarkerstyle('ArrowDINout-end', True)
 
-    
+    def drawDimArc(self, center, start, end, radius, style, parent, gap=0, lowside=True):
+        " just the arrowed arc line "
+        angle = abs(end-start)
+        # inside or outside 
+        inside = True
+        critical_length = 35
+        dist = calc_dist_between_points(point_on_circle(radius, start), point_on_circle(radius, end))
+        if angle < 45 and dist > critical_length: inside = False
+        # change start and end angles to make room for arrow markers
+        arrow_angle = math.degrees(math.sin(self.arrowlen/radius))
+        if lowside:
+            start += arrow_angle
+            angle -= arrow_angle
+            anglefac = 1
+        else:
+            start -= arrow_angle
+            angle -= arrow_angle
+            anglefac = -1
+        #
+        if gap == 0:
+            line_attribs = {'style' : simplestyle.formatStyle(style),
+                            'd'     : self.build_arc(center, start, angle*anglefac, radius, lowside) }
+            ell = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
+        else: # leave a gap for label
+            gap_angle = math.degrees(math.sin(gap/radius))
+            startstyle = deepcopy(style)
+            startstyle['marker-start'] = None
+            line_attribs = {'style' : simplestyle.formatStyle(startstyle),
+                            'd'     : self.build_arc(center, start, angle*anglefac/2-gap_angle/2*anglefac, radius, lowside) }
+            ell = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
+            endstyle = deepcopy(style)
+            endstyle['marker-end'] = None
+            line_attribs = {'style' : simplestyle.formatStyle(endstyle),
+                            'd'     : self.build_arc(center, angle/2*anglefac+gap_angle/2*anglefac, angle*anglefac, radius, lowside) }
+            inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
+        # return pos in center of gap (or arc)
+        textposangle = angle/2*anglefac
+        return (point_on_circle(radius, math.radians(textposangle)))
+        
     def drawDimension(self, a, b, style, parent):
         " draw arrowed dimensions using markers "
         # draw arrows as inside or outside dimension
         critical_length = 35.
         if calc_dist_between_points(a,b) > critical_length:
-            self.set_arrow_dir('inside')
+            self.set_arrow_dir('inside', style)
         else:
-            self.set_arrow_dir('outside')
+            self.set_arrow_dir('outside', style)
         attribs = {'style' : simplestyle.formatStyle(style)}
         # account for length change so arrows fit
         norm = normalize(a, b)
@@ -251,14 +295,15 @@ class SheetMetalConus(inkex.Effect):
             markup_group = inkex.etree.SubElement(grp, 'g', grp_attribs)
             self.beVerbose(dictCone, convFactor, markup_group)
                 
-    def build_arc(self, (x,y), start_angle, end_angle, radius, reverse=True):
-        " Make an arc "
+    def build_arc(self, (x,y), start_angle, end_angle, radius, reverse=True, swap=False):
+        " Make an arc - use degrees"
         # Not using internal arc rep - instead construct path A in svg style directly
         # so we can append lines to make single path
         start = polar_to_cartesian(x, y, radius, end_angle)
         end = polar_to_cartesian(x, y, radius, start_angle)
         arc_flag = 0 if reverse else 1
         sweep = 0 if (end_angle-start_angle) <=180 else 1
+        if swap: sweep = 1-sweep
         path = 'M %s,%s' % (start[0], start[1])
         path += " A %s,%s 0 %d %d %s %s" % (radius, radius, sweep, arc_flag, end[0], end[1])
         return path
@@ -289,7 +334,7 @@ class SheetMetalConus(inkex.Effect):
         stroke_width = max(0.1, self.getUnittouu(str(self.options.strokeWidth/2) + self.options.units))
         line_style = { 'stroke': self.color_marker_dim, 'stroke-width': str(stroke_width), 'fill':'none' }
         arrow_style = self.dimline_style
-        font_height = min(32, max( 10, int(self.getUnittouu(str(cone_height/16) + self.options.units))))
+        font_height = min(32, max( 8, int(self.getUnittouu(str(cone_height/26) + self.options.units))))
         text_style = { 'font-size': str(font_height),
                        'font-family': 'arial',
                        'text-anchor': 'middle',
@@ -338,12 +383,25 @@ class SheetMetalConus(inkex.Effect):
                      'y': str(-15) }
         text = inkex.etree.SubElement(parent, 'text', text_atts)
         text.text = "%4.3f" %(longradius)
-        # label for angle
+        # Draw angle
+        lowside = math.degrees(angle) < 180
+        value = math.degrees(angle) if lowside else 360-math.degrees(angle)
+        # radial limit lines
+        line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M 3,0 L %4.2f,0' % (ptA[0]*unitFactor*0.8)}
+        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M %4.2f,%4.2f L %4.2f,%4.2f' % (ptD[0]*unitFactor*0.02, ptD[1]*unitFactor*0.02,ptD[0]*unitFactor*0.8, ptD[1]*unitFactor*0.8)}
+        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        # arc
+        arc_rad = ptA[0]*unitFactor*0.50
+        gap = self.getUnittouu(str(font_height*2)+"pt")
+        textpos = self.drawDimArc((0,0), 0, value, arc_rad, arrow_style, parent, gap, lowside)
+        # angle label
+        textpos[1] += font_height/4 if lowside else font_height/2
         text_atts = {'style':simplestyle.formatStyle(text_style),
-                     'x': '0',
-                     'y': str(30) }
+                     'x': str(textpos[0]),
+                     'y': str(textpos[1]) }
         text = inkex.etree.SubElement(parent, 'text', text_atts)
-        text.text = "Angle %4.2f" %(math.degrees(angle))
+        text.text = "%4.2f deg" %(value)
         # chord lines
         dash_style = arrow_style
         dash_style['stroke'] = self.color_marker_chords
