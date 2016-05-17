@@ -21,9 +21,9 @@ def normalize(p1, p2):
     yDiff = p2[1] - p1[1]
     magn = calc_dist_between_points(p1,p2)
     return (xDiff/magn, yDiff/magn)
-def polar_to_cartesian(cx, cy, radius, angle):
+def polar_to_cartesian(cx, cy, radius, angle_degrees):
     " So we can make arcs in the 'A' svg syntax. "
-    angle_radians = math.radians(angle)
+    angle_radians = math.radians(angle_degrees)
     return (cx + (radius * math.cos(angle_radians)),
             cy + (radius * math.sin(angle_radians)))
 
@@ -241,7 +241,7 @@ class SheetMetalConus(inkex.Effect):
         path += self.build_line(dictCone['ptA'], dictCone['ptB'], convFactor) # A,B
         path += " " + self.build_arc(zeroCenter, 0.0, angle, dictCone['longRadius']*convFactor)
         path += " " + self.build_line(dictCone['ptC'], dictCone['ptD'], convFactor) # C,D
-        path += self.build_arc(zeroCenter, angle, 0.0, dictCone['shortRadius']*convFactor, False)
+        path += self.build_arc(zeroCenter, 0.0, angle, dictCone['shortRadius']*convFactor)
         line_attribs['d'] = path
         ell = inkex.etree.SubElement(grp, inkex.addNS('path','svg'), line_attribs )
         
