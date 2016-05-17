@@ -21,6 +21,11 @@ def normalize(p1, p2):
     yDiff = p2[1] - p1[1]
     magn = calc_dist_between_points(p1,p2)
     return (xDiff/magn, yDiff/magn)
+def polar_to_cartesian(cx, cy, radius, angle):
+    " So we can make arcs in the 'A' svg syntax. "
+    angle_radians = math.radians(angle)
+    return (cx + (radius * math.cos(angle_radians)),
+            cy + (radius * math.sin(angle_radians)))
 
 class SheetMetalConus(inkex.Effect):
     """ Program to unfold a frustum of a cone or a cone 
@@ -71,10 +76,7 @@ class SheetMetalConus(inkex.Effect):
             'marker-start'  : 'url(#ArrowDIN-start)',
             'marker-end'    : 'url(#ArrowDIN-end)'
             }
-        # self.dimline_attribs = {'style'  : simplestyle.formatStyle(self.dimline_style),
-                                # inkex.addNS('label','inkscape') : 'dimline',
-                                # 'd' : 'm 0,0 200,0'
-                               # }
+
 
     def getUnittouu(self, param):
         " compatibility between inkscape 0.48 and 0.91 "
@@ -160,7 +162,7 @@ class SheetMetalConus(inkex.Effect):
         attribs['d'] = 'M %f,%f %f,%f' % (dim_start_x, dim_start_y, dim_end_x, dim_end_y)
         dimline = inkex.etree.SubElement(parent, inkex.addNS('path', 'svg'), attribs)
         return dimline
-        
+    
     def calculateCone(self, dictCone):
         """ Calculates all relevant values in order to construct a cone.
             These values are:
@@ -230,16 +232,18 @@ class SheetMetalConus(inkex.Effect):
 
         linestyle = { 'stroke' : self.options.strokeColour, 'fill' : 'none',
                       'stroke-width': str(self.getUnittouu(str(self.options.strokeWidth) + self.options.units)) }
-
-        # Connect the points with lines
-        self.drawLine(dictCone['ptA'], dictCone['ptB'], linestyle, 'lineAB', convFactor, grp)
-        self.drawLine(dictCone['ptC'], dictCone['ptD'], linestyle, 'lineCD', convFactor, grp)
-        # Connect the points with arcs:
-        # draw arc with center 0,0 
-        # - a circle is an ellipse with radiusX=radiusY !
+        line_attribs = {'style' : simplestyle.formatStyle(linestyle), inkex.addNS('label','inkscape') : 'Cone' }
+        
+        # Connect the points into a single path of lines and arcs
         zeroCenter=(0.0, 0.0)
-        self.drawEllipse(dictCone['shortRadius'], dictCone['shortRadius'], zeroCenter, 0.0, dictCone['angle'], linestyle, 'arcAD', convFactor, grp)
-        self.drawEllipse(dictCone['longRadius'],  dictCone['longRadius'],  zeroCenter, 0.0, dictCone['angle'], linestyle, 'arcBC', convFactor, grp  )
+        angle = math.degrees(dictCone['angle'])
+        path = ""
+        path += self.build_line(dictCone['ptA'], dictCone['ptB'], convFactor) # A,B
+        path += " " + self.build_arc(zeroCenter, 0.0, angle, dictCone['longRadius']*convFactor)
+        path += " " + self.build_line(dictCone['ptC'], dictCone['ptD'], convFactor) # C,D
+        path += self.build_arc(zeroCenter, angle, 0.0, dictCone['shortRadius']*convFactor, False)
+        line_attribs['d'] = path
+        ell = inkex.etree.SubElement(grp, inkex.addNS('path','svg'), line_attribs )
         
         # Draw Dimensions Markup
         if self.options.verbose == True:
@@ -247,30 +251,21 @@ class SheetMetalConus(inkex.Effect):
             markup_group = inkex.etree.SubElement(grp, 'g', grp_attribs)
             self.beVerbose(dictCone, convFactor, markup_group)
                 
- 
-    def drawEllipse(self, radiusX, radiusY, (centerX, centerY), startAngle, endAngle, style, label, unitFactor, parent):
-        """ Draws an ellipse (or arc if radiusX=radiusY) using
-            - center point, start angle, end angle, and a given style.
-            unitfactor scales all dimensions.
-        """
-        attribs = {'style' : simplestyle.formatStyle(style),
-        inkex.addNS('label','inkscape') : label,
-        inkex.addNS('cx','sodipodi')     :str(centerX * unitFactor),
-        inkex.addNS('cy','sodipodi')     :str(centerY * unitFactor),
-        inkex.addNS('rx','sodipodi')     :str(radiusX * unitFactor),
-        inkex.addNS('ry','sodipodi')     :str(radiusY * unitFactor),
-        inkex.addNS('start','sodipodi')  :str(startAngle),
-        inkex.addNS('end','sodipodi')    :str(endAngle),
-        inkex.addNS('open','sodipodi')   :'true',    #all ellipse sectors we will draw are open
-        inkex.addNS('type','sodipodi')   :'arc' }
-        ell = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), attribs )
-
-    def drawLine(self, (x1, y1), (x2, y2), style, label, unitFactor, parent):
-        """ Draws a line from given point 1 to given point 2 with a given style.
-        """
-        line_attribs = {'style' : simplestyle.formatStyle(style), inkex.addNS('label','inkscape') : label,
-                        'd' : 'M %s,%s L %s,%s' % (x1*unitFactor, y1*unitFactor, x2*unitFactor, y2*unitFactor)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
+    def build_arc(self, (x,y), start_angle, end_angle, radius, reverse=True):
+        " Make an arc "
+        # Not using internal arc rep - instead construct path A in svg style directly
+        # so we can append lines to make single path
+        start = polar_to_cartesian(x, y, radius, end_angle)
+        end = polar_to_cartesian(x, y, radius, start_angle)
+        arc_flag = 0 if reverse else 1
+        sweep = 0 if (end_angle-start_angle) <=180 else 1
+        path = 'M %s,%s' % (start[0], start[1])
+        path += " A %s,%s 0 %d %d %s %s" % (radius, radius, sweep, arc_flag, end[0], end[1])
+        return path
+    
+    def build_line(self, (x1, y1), (x2, y2), unitFactor):
+        path = 'M %s,%s L %s,%s' % (x1*unitFactor, y1*unitFactor, x2*unitFactor, y2*unitFactor)
+        return path
 
     def beVerbose(self, dictCone, unitFactor, parent):
         """ Verbose output of calculated values. 
