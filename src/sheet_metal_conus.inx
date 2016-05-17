@@ -2,6 +2,7 @@
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
   <_name>Sheet Metal Conus</_name>
   <id>sheet_metal_conus</id>
+  
   <dependency type="executable" location="extensions">sheet_metal_conus.py</dependency>
   <dependency type="executable" location="extensions">inkex.py</dependency>
   <dependency type="executable" location="extensions">simplestyle.py</dependency>
@@ -26,7 +27,7 @@ If Cut diameter=0 then cone will not be truncated.</param>
   <effect>
     <object-type>all</object-type>
     <effects-menu>
-       <submenu _name="Render"/>
+       <submenu _name="Folded Forms"/>
     </effects-menu>
   </effect>
   <script>
