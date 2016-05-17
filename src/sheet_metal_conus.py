@@ -106,6 +106,7 @@ class SheetMetalConus(inkex.Effect):
 
     # Marker arrows
     def makeMarkerstyle(self, name, rotate):
+        " Markers added to defs for reuse "
         defs = self.xpathSingle('/svg:svg//svg:defs')
         if defs == None:
             defs = inkex.etree.SubElement(self.document.getroot(),inkex.addNS('defs','svg'))
@@ -118,7 +119,7 @@ class SheetMetalConus(inkex.Effect):
         marker.set(inkex.addNS('stockid','inkscape'), name)
 
         arrow = inkex.etree.Element("path")
-        # messy but works; definition of arrows in beautiful DIN-shapes:
+        # definition of arrows in beautiful DIN-shapes:
         if name.startswith('ArrowDIN-'):
             if rotate:
                 arrow.set('d', 'M 8,0 -8,2.11 -8,-2.11 z')
@@ -334,7 +335,7 @@ class SheetMetalConus(inkex.Effect):
         stroke_width = max(0.1, self.getUnittouu(str(self.options.strokeWidth/2) + self.options.units))
         line_style = { 'stroke': self.color_marker_dim, 'stroke-width': str(stroke_width), 'fill':'none' }
         arrow_style = self.dimline_style
-        font_height = min(32, max( 8, int(self.getUnittouu(str(cone_height/26) + self.options.units))))
+        font_height = min(32, max( 8, int(self.getUnittouu(str(longradius/40) + self.options.units))))
         text_style = { 'font-size': str(font_height),
                        'font-family': 'arial',
                        'text-anchor': 'middle',
@@ -422,10 +423,12 @@ class SheetMetalConus(inkex.Effect):
         simpletransform.applyTransformToNode(scale_matrix, text)
         text.text = "%4.2f" % (chord_base)
         if cut_dia >= 0.001:
+            centerx = ptA[0]*unitFactor + (ptD[0]-ptA[0])*unitFactor/2
+            centery = ptA[1]*unitFactor + (ptD[1]-ptA[1])*unitFactor/2
             xpos = centerx - font_height*math.sin(math.radians(abs(line_angle)))
-            ypos = centery-2 if line_angle<0 else centery+font_height+2
+            ypos = centery-2 if line_angle>0 else centery+font_height+2
             text = inkex.etree.SubElement(parent, 'text', text_atts)
-            scale_matrix = [[1, 0.0, xpos], [0.0, 1, ypos]]
+            scale_matrix = [[1, 0.0, centerx], [0.0, 1, ypos]]
             simpletransform.applyTransformToNode(scale_matrix, text)
             text.text = "%4.2f" % (chord_cut)
         # frustum lines
