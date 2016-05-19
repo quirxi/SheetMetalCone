@@ -404,9 +404,8 @@ class SheetMetalConus(inkex.Effect):
         text = inkex.etree.SubElement(parent, 'text', text_atts)
         text.text = "%4.2f deg" %(value)
         # chord lines
-        dash_style = arrow_style
+        dash_style = deepcopy(arrow_style)
         dash_style['stroke'] = self.color_marker_chords
-        dash_style['stroke-width'] = str(stroke_width)
         dash_style['stroke-dasharray'] = '4, 2, 1, 2'
         line = self.drawDimension((ptA[0]*unitFactor, ptA[1]*unitFactor), (ptD[0]*unitFactor, ptD[1]*unitFactor), dash_style, parent)
         line = self.drawDimension((ptB[0]*unitFactor, ptB[1]*unitFactor), (ptC[0]*unitFactor, ptC[1]*unitFactor), dash_style, parent)
@@ -436,8 +435,6 @@ class SheetMetalConus(inkex.Effect):
         text_style['fill'] = self.color_marker_base
         line_style['stroke'] = self.color_marker_base
         arrow_style['stroke'] = self.color_marker_base
-        arrow_style['stroke-width'] = str(stroke_width)
-        dash_style['stroke-dasharray'] = None
         line_attribs = {'style': simplestyle.formatStyle(line_style),
                         'd': 'M %f,%f L %f,%f %f,%f %f,%f z' %(-cut_dia/2*unitFactor,0, cut_dia/2*unitFactor,0, base_dia/2*unitFactor,cone_height*unitFactor, -base_dia/2*unitFactor,cone_height*unitFactor)}
         line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
@@ -448,7 +445,7 @@ class SheetMetalConus(inkex.Effect):
         line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         simpletransform.applyTransformToNode(frustrum_repos, line)
         #
-        line = self.drawDimension((-base_dia/2*unitFactor,0), (-base_dia/2*unitFactor,cone_height*unitFactor-5), arrow_style, parent)
+        line = self.drawDimension((-base_dia/2*unitFactor,0), (-base_dia/2*unitFactor,cone_height*unitFactor), arrow_style, parent)
         simpletransform.applyTransformToNode(frustrum_repos, line)
         # frustum text
         text_atts = {'style':simplestyle.formatStyle(text_style),
