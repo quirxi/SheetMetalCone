@@ -1,0 +1,28 @@
+# make new repository: ?
+	> git init
+
+# upload local repository to main repository:
+	> git remote add origin https://github.com/quirxi/SheetMetalCone.git
+
+# get status:
+	> git status
+	
+# add file to local repository's prestage:
+	> git add cone_construction.dxf
+
+# commit file to local repository:
+	> git commit -m "Changed name." cone_construction.dxf 
+	> git commit -a ..
+
+# remove a file from the local repository:
+	> git rm sceenshot.png 
+
+# rename/move a file:
+	> git mv ../screenshot.png screenshot00.png
+
+
+# get new files from github:
+	> git pull origin master
+
+# push changes of local repository to main repository:	
+	> git push -u origin master
