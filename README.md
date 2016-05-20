@@ -1,9 +1,10 @@
-## Sheet Metal Cone
+# **Sheet Metal Cone**
 
 ![Cone](sheetmetalcone.png)
 
-Inkscape Extension to generate a sheet cutting layout for a (truncated) cone.
-The extension unfolds a frustum (=truncated cone) or a cone (if cut diameter=0) and generates a sheet cutting layout or flat pattern projection that can be rolled or bend up into a (truncated) cone shape. 
+This is an inkscape extension to generate a sheet cutting layout for a (truncated) cone.
+The extension unfolds a frustum (=truncated cone) or a cone (if cut diameter=0) and generates 
+a sheet cutting layout or flat pattern projection that can be rolled or bend up into a (truncated) cone shape.  
 
 ![Screenshot](screenshot.png)
 
@@ -15,16 +16,19 @@ The exact folder is indicated in:
 
 Generally it can be found:
 
-`Linux:`
+*`-> Linux:`*
 *  ~/.config/inkscape/extensions/
 *  /usr/share/inkscape/extensions/
 
-`Windows:` 
+*`-> Windows:`* 
 *  type the following into the address line on a File Browser window:
 *  %appdata%/inkscape/extensions
 
-`Mac OS X:` 
+*`-> Mac OS X:`* 
 *  /Applications/Inkscape.app/Contents/Resources/share/inkscape/extensions/
+
+The menu entry for this this extension can be found under:     
+    ***"Extensions->Folded Forms->Sheet Metal Conus..."***
 
 ## License
 
