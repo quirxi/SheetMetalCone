@@ -5,9 +5,10 @@
 import sys
 import math
 import simplestyle
-import simpletransform
 import inkex
 from copy import deepcopy
+from lxml import etree
+from inkex.transforms import Transform
 
 # Helper functions
 def calc_angle_between_points(p1, p2):
@@ -56,40 +57,40 @@ class SheetMetalConus(inkex.Effect):
         """
         inkex.Effect.__init__(self) # Call the base class constructor.
         # Describe parameters
-        self.OptionParser.add_option('-b', '--diaBase', action = 'store',
-            type = 'float', dest = 'diaBase', default = 300.0,
+        self.arg_parser.add_argument('-b', '--diaBase', action = 'store',
+            type = float, dest = 'diaBase', default = 300.0,
             help = 'The diameter of the cones base.')
 
-        self.OptionParser.add_option('-c', '--diaCut', action = 'store',
-            type = 'float', dest = 'diaCut', default = 100.0,
+        self.arg_parser.add_argument('-c', '--diaCut', action = 'store',
+            type = float, dest = 'diaCut', default = 100.0,
             help = 'The diameter of cones cut (0.0 if cone is not cut.')
 
-        self.OptionParser.add_option('-l', '--heightCone', action = 'store',
-            type = 'float', dest = 'heightCone', default = 200.0,
+        self.arg_parser.add_argument('-l', '--heightCone', action = 'store',
+            type = float, dest = 'heightCone', default = 200.0,
             help = 'The height of the (cut) cone.')
         
-        self.OptionParser.add_option('-u', '--units', action = 'store',
-            type = 'string', dest = 'units', default = 'mm',
+        self.arg_parser.add_argument('-u', '--units', action = 'store',
+            type = str, dest = 'units', default = 'mm',
             help = 'The units in which the cone values are given. mm or in for real objects')
         
-        self.OptionParser.add_option('-w', '--strokeWidth', action = 'store',
-            type = 'float', dest = 'strokeWidth', default = 0.3,
+        self.arg_parser.add_argument('-w', '--strokeWidth', action = 'store',
+            type = float, dest = 'strokeWidth', default = 0.3,
             help = 'The line thickness in given unit. For laser cutting it should be rather small.')
 
-        self.OptionParser.add_option('-f', '--strokeColour', action = 'store',
-            type = 'string', dest = 'strokeColour', default = 896839168, # Blue
+        self.arg_parser.add_argument('-f', '--strokeColour', action = 'store',
+            type = str, dest = 'strokeColour', default = 896839168, # Blue
             help = 'The line colour.')
 
-        self.OptionParser.add_option('-d', '--verbose', action = 'store',
-            type = 'inkbool', dest = 'verbose', default = False,
+        self.arg_parser.add_argument('-d', '--verbose', action = 'store',
+            type = inkex.Boolean, dest = 'verbose', default = False,
             help = 'Enable verbose output of calculated parameters. Used for debugging or is someone needs the calculated values.')
 
     def getUnittouu(self, param):
         " compatibility between inkscape 0.48 and 0.91 "
         try:
-            return inkex.unittouu(param)
+            return self.svg.unittouu(param)
         except AttributeError:
-            return self.unittouu(param)
+            return self.svg.unittouu(param)
 
     def getColorString(self, longColor, verbose=False):
         """ Convert the long into a #RRGGBB color value
@@ -107,10 +108,10 @@ class SheetMetalConus(inkex.Effect):
     # Marker arrows
     def makeMarkerstyle(self, name, rotate):
         " Markers added to defs for reuse "
-        defs = self.xpathSingle('/svg:svg//svg:defs')
+        defs = self.svg.getElement('/svg:svg//svg:defs')
         if defs == None:
-            defs = inkex.etree.SubElement(self.document.getroot(),inkex.addNS('defs','svg'))
-        marker = inkex.etree.SubElement(defs ,inkex.addNS('marker','svg'))
+            defs = etree.SubElement(self.document.getroot(),inkex.addNS('defs','svg'))
+        marker = etree.SubElement(defs ,inkex.addNS('marker','svg'))
         marker.set('id', name)
         marker.set('orient', 'auto')
         marker.set('refX', '0.0')
@@ -118,7 +119,7 @@ class SheetMetalConus(inkex.Effect):
         marker.set('style', 'overflow:visible')
         marker.set(inkex.addNS('stockid','inkscape'), name)
 
-        arrow = inkex.etree.Element("path")
+        arrow = etree.Element("path")
         # definition of arrows in beautiful DIN-shapes:
         if name.startswith('ArrowDIN-'):
             if rotate:
@@ -169,21 +170,21 @@ class SheetMetalConus(inkex.Effect):
             anglefac = -1
         #
         if gap == 0:
-            line_attribs = {'style' : simplestyle.formatStyle(style),
+            line_attribs = {'style' : str(inkex.Style(style)),
                             'd'     : self.build_arc(center, start, angle*anglefac, radius, lowside) }
-            ell = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
+            ell = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
         else: # leave a gap for label
             gap_angle = math.degrees(math.sin(gap/radius))
             startstyle = deepcopy(style)
             startstyle['marker-start'] = None
-            line_attribs = {'style' : simplestyle.formatStyle(startstyle),
+            line_attribs = {'style' : str(inkex.Style(startstyle)),
                             'd'     : self.build_arc(center, start, angle*anglefac/2-gap_angle/2*anglefac, radius, lowside) }
-            ell = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
+            ell = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
             endstyle = deepcopy(style)
             endstyle['marker-end'] = None
-            line_attribs = {'style' : simplestyle.formatStyle(endstyle),
+            line_attribs = {'style' : str(inkex.Style(endstyle)),
                             'd'     : self.build_arc(center, angle/2*anglefac+gap_angle/2*anglefac, angle*anglefac, radius, lowside) }
-            inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
+            etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs )
         # return pos in center of gap (or arc)
         textposangle = angle/2*anglefac
         return (point_on_circle(radius, math.radians(textposangle)))
@@ -196,7 +197,7 @@ class SheetMetalConus(inkex.Effect):
             self.set_arrow_dir('inside', style)
         else:
             self.set_arrow_dir('outside', style)
-        attribs = {'style' : simplestyle.formatStyle(style)}
+        attribs = {'style' : str(inkex.Style(style))}
         # account for length change so arrows fit
         norm = normalize(a, b)
         dim_start_x = a[0] + self.arrowlen*norm[0]
@@ -205,7 +206,7 @@ class SheetMetalConus(inkex.Effect):
         dim_end_y = b[1] - self.arrowlen*norm[1]
         #
         attribs['d'] = 'M %f,%f %f,%f' % (dim_start_x, dim_start_y, dim_end_x, dim_end_y)
-        dimline = inkex.etree.SubElement(parent, inkex.addNS('path', 'svg'), attribs)
+        dimline = etree.SubElement(parent, inkex.addNS('path', 'svg'), attribs)
         return dimline
     
     def calculateCone(self, dictCone):
@@ -271,13 +272,13 @@ class SheetMetalConus(inkex.Effect):
         
         # Draw the cone layout:
         # Make top level group
-        t = 'translate(%s,%s)' % (self.view_center[0], self.view_center[1])
+        t = 'translate(%s,%s)' % (self.svg.namedview.center[0], self.svg.namedview.center[1])
         grp_attribs = {inkex.addNS('label','inkscape'):'Sheet Metal Conus Group', 'transform':t}
-        grp = inkex.etree.SubElement(self.current_layer, 'g', grp_attribs)
+        grp = etree.SubElement(self.svg.get_current_layer(), 'g', grp_attribs)
 
         linestyle = { 'stroke' : self.options.strokeColour, 'fill' : 'none',
                       'stroke-width': str(self.getUnittouu(str(self.options.strokeWidth) + self.options.units)) }
-        line_attribs = {'style' : simplestyle.formatStyle(linestyle), inkex.addNS('label','inkscape') : 'Cone' }
+        line_attribs = {'style' : str(inkex.Style(linestyle)), inkex.addNS('label','inkscape') : 'Cone' }
         
         # Connect the points into a single path of lines and arcs
         zeroCenter=(0.0, 0.0)
@@ -288,12 +289,12 @@ class SheetMetalConus(inkex.Effect):
         path += " " + self.build_line(dictCone['ptC'], dictCone['ptD'], convFactor) # C,D
         path += self.build_arc(zeroCenter, 0.0, angle, dictCone['shortRadius']*convFactor)
         line_attribs['d'] = path
-        ell = inkex.etree.SubElement(grp, inkex.addNS('path','svg'), line_attribs )
+        ell = etree.SubElement(grp, inkex.addNS('path','svg'), line_attribs )
         
         # Draw Dimensions Markup
         if self.options.verbose == True:
             grp_attribs = {inkex.addNS('label','inkscape'):'markup'}
-            markup_group = inkex.etree.SubElement(grp, 'g', grp_attribs)
+            markup_group = etree.SubElement(grp, 'g', grp_attribs)
             self.beVerbose(dictCone, convFactor, markup_group)
                 
     def build_arc(self, (x,y), start_angle, end_angle, radius, reverse=True, swap=False):
@@ -352,56 +353,56 @@ class SheetMetalConus(inkex.Effect):
 
         # Mark center
         marker_length = max(5, longradius* unitFactor/100)
-        line_attribs = {'style' : simplestyle.formatStyle(line_style),
+        line_attribs = {'style' : str(inkex.Style(line_style)),
                         inkex.addNS('label','inkscape') : 'center',
                         'd' : 'M -{0},-{0} L {0},{0}'.format(marker_length)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
-        line_attribs = {'style' : simplestyle.formatStyle(line_style),
+        line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        line_attribs = {'style' : str(inkex.Style(line_style)),
                         inkex.addNS('label','inkscape') : 'center',
                         'd' : 'M -{0},{0} L {0},-{0}'.format(marker_length)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         # Draw tick marks
-        line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M 0,-3 L 0,-30'}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        line_attribs = {'style' : str(inkex.Style(line_style)), 'd' : 'M 0,-3 L 0,-30'}
+        line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         if cut_dia != 0:
-            line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M {0},-3 L {0},-30'.format(shortradius * unitFactor)}
-            line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
-        line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M {0},-3 L {0},-30'.format(longradius * unitFactor)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+            line_attribs = {'style' : str(inkex.Style(line_style)), 'd' : 'M {0},-3 L {0},-30'.format(shortradius * unitFactor)}
+            line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        line_attribs = {'style' : str(inkex.Style(line_style)), 'd' : 'M {0},-3 L {0},-30'.format(longradius * unitFactor)}
+        line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         # span line
         arrow_style['stroke'] = self.color_marker_dim
         self.drawDimension((0,-10), (shortradius * unitFactor, -10), arrow_style, parent)
         self.drawDimension((shortradius * unitFactor,-10), (longradius * unitFactor, -10), arrow_style, parent)
         # labels for short, long radii
         if cut_dia >= 0.001:
-            text_atts = {'style':simplestyle.formatStyle(text_style),
+            text_atts = {'style':str(inkex.Style(text_style)),
                          'x': str(shortradius*unitFactor/2),
                          'y': str(-15) }
-            text = inkex.etree.SubElement(parent, 'text', text_atts)
+            text = etree.SubElement(parent, 'text', text_atts)
             text.text = "%4.3f" %(shortradius)
-        text_atts = {'style':simplestyle.formatStyle(text_style),
+        text_atts = {'style':str(inkex.Style(text_style)),
                      'x': str((shortradius + (longradius-shortradius)/2)*unitFactor),
                      'y': str(-15) }
-        text = inkex.etree.SubElement(parent, 'text', text_atts)
+        text = etree.SubElement(parent, 'text', text_atts)
         text.text = "%4.3f" %(longradius)
         # Draw angle
         lowside = math.degrees(angle) < 180
         value = math.degrees(angle) if lowside else 360-math.degrees(angle)
         # radial limit lines
-        line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M 3,0 L %4.2f,0' % (ptA[0]*unitFactor*0.8)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
-        line_attribs = {'style' : simplestyle.formatStyle(line_style), 'd' : 'M %4.2f,%4.2f L %4.2f,%4.2f' % (ptD[0]*unitFactor*0.02, ptD[1]*unitFactor*0.02,ptD[0]*unitFactor*0.8, ptD[1]*unitFactor*0.8)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        line_attribs = {'style' : str(inkex.Style(line_style)), 'd' : 'M 3,0 L %4.2f,0' % (ptA[0]*unitFactor*0.8)}
+        line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        line_attribs = {'style' : str(inkex.Style(line_style)), 'd' : 'M %4.2f,%4.2f L %4.2f,%4.2f' % (ptD[0]*unitFactor*0.02, ptD[1]*unitFactor*0.02,ptD[0]*unitFactor*0.8, ptD[1]*unitFactor*0.8)}
+        line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         # arc
         arc_rad = ptA[0]*unitFactor*0.50
         gap = self.getUnittouu(str(font_height*2)+"pt")
         textpos = self.drawDimArc((0,0), 0, value, arc_rad, arrow_style, parent, gap, lowside)
         # angle label
         textpos[1] += font_height/4 if lowside else font_height/2
-        text_atts = {'style':simplestyle.formatStyle(text_style),
+        text_atts = {'style':str(inkex.Style(text_style)),
                      'x': str(textpos[0]),
                      'y': str(textpos[1]) }
-        text = inkex.etree.SubElement(parent, 'text', text_atts)
+        text = etree.SubElement(parent, 'text', text_atts)
         text.text = "%4.2f deg" %(value)
         # chord lines
         dash_style = deepcopy(arrow_style)
@@ -415,63 +416,61 @@ class SheetMetalConus(inkex.Effect):
         line_angle = calc_angle_between_points(ptC, ptB)
         ypos = centery+font_height+2 if line_angle<0 else centery-2
         text_style['fill'] = self.color_marker_chords
-        text_atts = {'style':simplestyle.formatStyle(text_style),
+        text_atts = {'style':str(inkex.Style(text_style)),
                      'transform': 'rotate(%f)' % (line_angle) }
-        text = inkex.etree.SubElement(parent, 'text', text_atts)
+        text = etree.SubElement(parent, 'text', text_atts)
         scale_matrix = [[1, 0.0, centerx], [0.0, 1, ypos]] # needs cos,sin corrections
-        simpletransform.applyTransformToNode(scale_matrix, text)
+        text.transform = Transform(scale_matrix) * text.transform
         text.text = "%4.2f" % (chord_base)
         if cut_dia >= 0.001:
             centerx = ptA[0]*unitFactor + (ptD[0]-ptA[0])*unitFactor/2
             centery = ptA[1]*unitFactor + (ptD[1]-ptA[1])*unitFactor/2
             xpos = centerx - font_height*math.sin(math.radians(abs(line_angle)))
             ypos = centery-2 if line_angle>0 else centery+font_height+2
-            text = inkex.etree.SubElement(parent, 'text', text_atts)
+            text = etree.SubElement(parent, 'text', text_atts)
             scale_matrix = [[1, 0.0, centerx], [0.0, 1, ypos]]
-            simpletransform.applyTransformToNode(scale_matrix, text)
+            text.transform = Transform(scale_matrix) * text.transform
             text.text = "%4.2f" % (chord_cut)
         # frustum lines
         frustrum_repos = [[1, 0.0, 1], [0.0, 1, math.sqrt(pow(shortradius*unitFactor,2)-pow(cut_dia*unitFactor/2,2))]]
         text_style['fill'] = self.color_marker_base
         line_style['stroke'] = self.color_marker_base
         arrow_style['stroke'] = self.color_marker_base
-        line_attribs = {'style': simplestyle.formatStyle(line_style),
+        line_attribs = {'style': str(inkex.Style(line_style)),
                         'd': 'M %f,%f L %f,%f %f,%f %f,%f z' %(-cut_dia/2*unitFactor,0, cut_dia/2*unitFactor,0, base_dia/2*unitFactor,cone_height*unitFactor, -base_dia/2*unitFactor,cone_height*unitFactor)}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
-        simpletransform.applyTransformToNode(frustrum_repos, line)
+        line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        line.transform = Transform(frustrum_repos) * line.transform
         # ticks
-        line_attribs = {'style': simplestyle.formatStyle(line_style),
+        line_attribs = {'style': str(inkex.Style(line_style)),
                         'd': 'M %f,%f L %f,%f' %(-(5+cut_dia/2*unitFactor),0, -(5+base_dia/2*unitFactor),0 )}
-        line = inkex.etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
-        simpletransform.applyTransformToNode(frustrum_repos, line)
+        line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
+        line.transform = Transform(frustrum_repos) * line.transform
         #
         line = self.drawDimension((-base_dia/2*unitFactor,0), (-base_dia/2*unitFactor,cone_height*unitFactor), arrow_style, parent)
-        simpletransform.applyTransformToNode(frustrum_repos, line)
+        line.transform = Transform(frustrum_repos) * line.transform
         # frustum text
-        text_atts = {'style':simplestyle.formatStyle(text_style),
+        text_atts = {'style':str(inkex.Style(text_style)),
                      'x': str(-(18+base_dia/2*unitFactor)),
                      'y': str(cone_height*unitFactor/2) }
-        text = inkex.etree.SubElement(parent, 'text', text_atts)
+        text = etree.SubElement(parent, 'text', text_atts)
         text.text = "%4.3f" %(cone_height)
-        simpletransform.applyTransformToNode(frustrum_repos, text)
+        line.transform = Transform(frustrum_repos) * line.transform
         if cut_dia >= 0.001:
-            text_atts = {'style':simplestyle.formatStyle(text_style),
+            text_atts = {'style':str(inkex.Style(text_style)),
                          'x': '0',
                          'y': str(font_height) }
-            text = inkex.etree.SubElement(parent, 'text', text_atts)
+            text = etree.SubElement(parent, 'text', text_atts)
             text.text = "%4.3f" %(cut_dia)
-            simpletransform.applyTransformToNode(frustrum_repos, text)
-        text_atts = {'style':simplestyle.formatStyle(text_style),
+            line.transform = Transform(frustrum_repos) * line.transform
+        text_atts = {'style':str(inkex.Style(text_style)),
                      'x': '0',
                      'y': str(cone_height*unitFactor+font_height) }
-        text = inkex.etree.SubElement(parent, 'text', text_atts)
+        text = etree.SubElement(parent, 'text', text_atts)
         text.text = "%4.3f" %(base_dia)
-        simpletransform.applyTransformToNode(frustrum_repos, text)
+        text.transform = Transform(frustrum_repos) * text.transform
         
         
 
 # Create effect instance and apply it.
 effect = SheetMetalConus()
-effect.affect()
-
-
+effect.run()
