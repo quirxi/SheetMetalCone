@@ -1,10 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Distributed under the terms of the GNU Lesser General Public License v3.0
 
-import sys
 import math
-import simplestyle
 import inkex
 from copy import deepcopy
 from lxml import etree
@@ -15,27 +13,32 @@ def calc_angle_between_points(p1, p2):
     xDiff = p2[0] - p1[0]
     yDiff = p2[1] - p1[1]
     return math.degrees(math.atan2(yDiff, xDiff))
+	
 def calc_dist_between_points(p1, p2):
     xDiff = p2[0] - p1[0]
     yDiff = p2[1] - p1[1]
     return math.sqrt(yDiff*yDiff + xDiff*xDiff)
+	
 def normalize(p1, p2):
     " p1,p2 defines a vector return normalized "
     xDiff = p2[0] - p1[0]
     yDiff = p2[1] - p1[1]
     magn = calc_dist_between_points(p1,p2)
     return (xDiff/magn, yDiff/magn)
+	
 def polar_to_cartesian(cx, cy, radius, angle_degrees):
     " So we can make arcs in the 'A' svg syntax. "
     angle_radians = math.radians(angle_degrees)
-    return (cx + (radius * math.cos(angle_radians)),
-            cy + (radius * math.sin(angle_radians)))
+    return [
+	          cx + (radius * math.cos(angle_radians)), 
+			  cy + (radius * math.sin(angle_radians))
+		    ]
+	
 def point_on_circle(radius, angle):
     " return xy coord of the point at distance radius from origin at angle "
     x = radius * math.cos(angle)
     y = radius * math.sin(angle)
     return [x, y]
-
 
 class SheetMetalConus(inkex.Effect):
     """ Program to unfold a frustum of a cone or a cone 
@@ -57,54 +60,20 @@ class SheetMetalConus(inkex.Effect):
         """
         inkex.Effect.__init__(self) # Call the base class constructor.
         # Describe parameters
-        self.arg_parser.add_argument('-b', '--diaBase', action = 'store',
-            type = float, dest = 'diaBase', default = 300.0,
-            help = 'The diameter of the cones base.')
+        self.arg_parser.add_argument('-b', '--diaBase', type = float, dest = 'diaBase', default = 300.0, help = 'The diameter of the cones base.')
+        self.arg_parser.add_argument('-c', '--diaCut',  type = float, default = 100.0, help = 'The diameter of cones cut (0.0 if cone is not cut.')
+        self.arg_parser.add_argument('-l', '--heightCone',  type = float, default = 200.0, help = 'The height of the (cut) cone.')
+        self.arg_parser.add_argument('-u', '--units', default = 'mm', help = 'The units in which the cone values are given. mm or in for real objects')
+        self.arg_parser.add_argument('-w', '--strokeWidth', type = float, default = 0.3, help = 'The line thickness in given unit. For laser cutting it should be rather small.')
+        self.arg_parser.add_argument('-f', '--strokeColour',  default = 896839168, help = 'The line colour.')
+        self.arg_parser.add_argument('-d', '--verbose', type = inkex.Boolean, default = False, help = 'Enable verbose output of calculated parameters. Used for debugging or is someone needs the calculated values.')
 
-        self.arg_parser.add_argument('-c', '--diaCut', action = 'store',
-            type = float, dest = 'diaCut', default = 100.0,
-            help = 'The diameter of cones cut (0.0 if cone is not cut.')
-
-        self.arg_parser.add_argument('-l', '--heightCone', action = 'store',
-            type = float, dest = 'heightCone', default = 200.0,
-            help = 'The height of the (cut) cone.')
-        
-        self.arg_parser.add_argument('-u', '--units', action = 'store',
-            type = str, dest = 'units', default = 'mm',
-            help = 'The units in which the cone values are given. mm or in for real objects')
-        
-        self.arg_parser.add_argument('-w', '--strokeWidth', action = 'store',
-            type = float, dest = 'strokeWidth', default = 0.3,
-            help = 'The line thickness in given unit. For laser cutting it should be rather small.')
-
-        self.arg_parser.add_argument('-f', '--strokeColour', action = 'store',
-            type = str, dest = 'strokeColour', default = 896839168, # Blue
-            help = 'The line colour.')
-
-        self.arg_parser.add_argument('-d', '--verbose', action = 'store',
-            type = inkex.Boolean, dest = 'verbose', default = False,
-            help = 'Enable verbose output of calculated parameters. Used for debugging or is someone needs the calculated values.')
-
-    def getUnittouu(self, param):
-        " compatibility between inkscape 0.48 and 0.91 "
-        try:
-            return self.svg.unittouu(param)
-        except AttributeError:
-            return self.svg.unittouu(param)
-
-    def getColorString(self, longColor, verbose=False):
-        """ Convert the long into a #RRGGBB color value
-            - verbose=true pops up value for us in defaults
-            conversion back is A + B*256^1 + G*256^2 + R*256^3
-        """
-        if verbose: inkex.debug("%s ="%(longColor))
-        longColor = long(longColor)
-        if longColor <0: longColor = long(longColor) & 0xFFFFFFFF
-        hexColor = hex(longColor)[2:-3]
-        hexColor = '#' + hexColor.rjust(6, '0').upper()
-        if verbose: inkex.debug("  %s for color default value"%(hexColor))
-        return hexColor
-
+    def getColorString(self, pickerColor):
+        longcolor = int(pickerColor)
+        if longcolor < 0:
+            longcolor = longcolor & 0xFFFFFFFF
+        return '#' + format(longcolor >> 8, '06X')	
+		
     # Marker arrows
     def makeMarkerstyle(self, name, rotate):
         " Markers added to defs for reuse "
@@ -260,7 +229,7 @@ class SheetMetalConus(inkex.Effect):
             - Overrides base class' method and draws rolled out sheet metal cone into SVG document.
         """
         # calc scene scale
-        convFactor = self.getUnittouu("1" + self.options.units)
+        convFactor = self.svg.unittouu("1" + self.options.units)
         # convert color
         self.options.strokeColour = self.getColorString(self.options.strokeColour)      
         # Store all the relevants values in a dictionary for easy access
@@ -277,17 +246,17 @@ class SheetMetalConus(inkex.Effect):
         grp = etree.SubElement(self.svg.get_current_layer(), 'g', grp_attribs)
 
         linestyle = { 'stroke' : self.options.strokeColour, 'fill' : 'none',
-                      'stroke-width': str(self.getUnittouu(str(self.options.strokeWidth) + self.options.units)) }
+                      'stroke-width': str(self.svg.unittouu(str(self.options.strokeWidth) + self.options.units)) }
         line_attribs = {'style' : str(inkex.Style(linestyle)), inkex.addNS('label','inkscape') : 'Cone' }
         
         # Connect the points into a single path of lines and arcs
         zeroCenter=(0.0, 0.0)
         angle = math.degrees(dictCone['angle'])
         path = ""
-        path += self.build_line(dictCone['ptA'], dictCone['ptB'], convFactor) # A,B
-        path += " " + self.build_arc(zeroCenter, 0.0, angle, dictCone['longRadius']*convFactor)
-        path += " " + self.build_line(dictCone['ptC'], dictCone['ptD'], convFactor) # C,D
-        path += self.build_arc(zeroCenter, 0.0, angle, dictCone['shortRadius']*convFactor)
+        path += self.build_line(dictCone['ptA'][0], dictCone['ptA'][1], dictCone['ptB'][0], dictCone['ptB'][1], convFactor) # A,B
+        path += " " + self.build_arc(zeroCenter[0], zeroCenter[1], 0.0, angle, dictCone.get('longRadius')*convFactor)
+        path += " " + self.build_line(dictCone['ptC'][0], dictCone['ptC'][1],dictCone['ptD'][0], dictCone['ptD'][1], convFactor) # C,D
+        path += self.build_arc(zeroCenter[0], zeroCenter[1], 0.0, angle, dictCone['shortRadius']*convFactor)
         line_attribs['d'] = path
         ell = etree.SubElement(grp, inkex.addNS('path','svg'), line_attribs )
         
@@ -297,8 +266,7 @@ class SheetMetalConus(inkex.Effect):
             markup_group = etree.SubElement(grp, 'g', grp_attribs)
             self.beVerbose(dictCone, convFactor, markup_group)
                 
-    def build_arc(self, (x,y), start_angle, end_angle, radius, reverse=True, swap=False):
-        " Make an arc - use degrees"
+    def build_arc(self, x, y, start_angle, end_angle, radius, reverse=True, swap=False):
         # Not using internal arc rep - instead construct path A in svg style directly
         # so we can append lines to make single path
         start = polar_to_cartesian(x, y, radius, end_angle)
@@ -310,7 +278,7 @@ class SheetMetalConus(inkex.Effect):
         path += " A %s,%s 0 %d %d %s %s" % (radius, radius, sweep, arc_flag, end[0], end[1])
         return path
     
-    def build_line(self, (x1, y1), (x2, y2), unitFactor):
+    def build_line(self, x1, y1, x2, y2, unitFactor):
         path = 'M %s,%s L %s,%s' % (x1*unitFactor, y1*unitFactor, x2*unitFactor, y2*unitFactor)
         return path
 
@@ -333,10 +301,10 @@ class SheetMetalConus(inkex.Effect):
         ptD = dictCone['ptD']
 
         # styles for markup
-        stroke_width = max(0.1, self.getUnittouu(str(self.options.strokeWidth/2) + self.options.units))
+        stroke_width = max(0.1, self.svg.unittouu(str(self.options.strokeWidth/2) + self.options.units))
         line_style = { 'stroke': self.color_marker_dim, 'stroke-width': str(stroke_width), 'fill':'none' }
         arrow_style = self.dimline_style
-        font_height = min(32, max( 8, int(self.getUnittouu(str(longradius/40) + self.options.units))))
+        font_height = min(32, max( 8, int(self.svg.unittouu(str(longradius/40) + self.options.units))))
         text_style = { 'font-size': str(font_height),
                        'font-family': 'arial',
                        'text-anchor': 'middle',
@@ -349,7 +317,7 @@ class SheetMetalConus(inkex.Effect):
               " radians (= " + str(math.degrees(angle)) + " degrees)" + \
               "\nChord length of base arc: " + str(chord_base) + \
               "\nChord length of cut arc: " + str(chord_cut)
-        #inkex.debug( msg)
+        #inkex.utils.debug( msg)
 
         # Mark center
         marker_length = max(5, longradius* unitFactor/100)
@@ -395,8 +363,8 @@ class SheetMetalConus(inkex.Effect):
         line = etree.SubElement(parent, inkex.addNS('path','svg'), line_attribs)
         # arc
         arc_rad = ptA[0]*unitFactor*0.50
-        gap = self.getUnittouu(str(font_height*2)+"pt")
-        textpos = self.drawDimArc((0,0), 0, value, arc_rad, arrow_style, parent, gap, lowside)
+        gap = self.svg.unittouu(str(font_height*2)+"pt")
+        textpos = self.drawDimArc(0, 0, value, arc_rad, arrow_style, parent, gap, lowside)
         # angle label
         textpos[1] += font_height/4 if lowside else font_height/2
         text_atts = {'style':str(inkex.Style(text_style)),
@@ -469,8 +437,6 @@ class SheetMetalConus(inkex.Effect):
         text.text = "%4.3f" %(base_dia)
         text.transform = Transform(frustrum_repos) * text.transform
         
-        
-
 # Create effect instance and apply it.
 effect = SheetMetalConus()
 effect.run()
